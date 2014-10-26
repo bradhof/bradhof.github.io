@@ -1,0 +1,64 @@
+---
+title: "Exercise Analysis"
+author: "Bradley Hof"
+date: "Sunday, October 26, 2014"
+output: html_document
+---
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+library(caret); library(ggplot2); library(randomForest);
+```
+## Summary
+In this analysis, we are going to analyze the factors that predict how "well" a workout exercise was performed using data from sensors attached to the participants body. In this analysis we built a random forest model using cross-validation, and achieved a 99.6% out-of-sample accuracy and an OOB error rate of 0.44%.
+
+## Training Data Set
+The training data set contains 160 variables from body sensors. The sensors tracked the body movements and acceleration while the participant performed the excercise.  A professional fitness intructor tracked each excercise and noted if the workout was performed correctly.  The "classe" variable designates whether the exercise was performed correctly or not. A classe of "A" designates the exercise was correct. Otherwise, it was not performed correctly.  Our goal is to predict the instructor's grade of the excercise ("A","B","C","D", or "E")
+```{r cache=T, message=F}
+set.seed(12321)
+trainurl <- "http://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+training <- read.csv(trainurl, stringsAsFactors=F, na.strings=c("","NA"))
+```
+
+## Variable Selection
+The data set contains many aggregate variables (average, minimum, maximum, etc) for each sensor.  We are going to remove the aggregate variables because most of the variables are missing. 
+```{r}
+colPattern <- "^max_|skewness_|max_|min_|avg_|stddev_|amplitude_|var_|kurtosis_|raw_time|cvtd_|X|user_name|new_window|num_window"
+training <- training[,!grepl(colPattern, colnames(training))]
+training$classe <- as.factor(training$classe)
+
+str(training)
+```
+
+## Cross Validation data set
+Since we have a large data set (`r nrow(training)` rows), We split the training data set into a smaller training data set and a cross-validation testing set with a 70/30 split. 
+```{r}
+inTrain <- createDataPartition(y=training$classe, p=.7, list=F)
+train <- training[inTrain,]
+test <- training[-inTrain,]
+```
+
+Training: `r nrow(train)` rows   
+Cross-Validation: `r nrow(test)` rows
+
+## Random Forest
+We used a random forest to model the predictors on the training set. As you can see, the model provides an OOB error rate of  0.44%. 
+```{r cache=TRUE}
+fit <- randomForest(classe~., data=train)
+fit
+```
+
+## Cross Valiadation
+We used the cross-validation test set to test the accuacy of our prediction on an out-of-sample data set and achieved a 99.6% accuracy on the prediction. 
+```{r}
+testpreds <- predict(fit, test)
+confusionMatrix(testpreds, test$classe)
+```
+
+## Apply to Test set
+We have 20 observations in which to predict.  We need to prepare out dataset in a similar way to the training set by removing variables. The prediction for each sample is noted below.  
+```{r}
+testurl <- "http://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+dsf <- read.csv(testurl, stringsAsFactors=F, na.strings=c("","NA"))
+dsf <- dsf[,!grepl(colPattern,colnames(dsf))]
+preds <- predict(fit, dsf)
+preds
+```
